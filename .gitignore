@@ -4,4 +4,3 @@ __pycache__/
 characters/*/fillers/
 characters/*/*_ref.wav
 .env
-characters/*/avatar/expr_drafts/

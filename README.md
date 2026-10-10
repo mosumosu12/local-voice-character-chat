@@ -8,6 +8,8 @@
 - 返事を考えるのは Claude。**Claude のサブスク（Pro/Max）でそのまま動く**。API キーでも可
 - キャラは `characters/<名前>/character.json` を1つ書くだけで増やせる
 
+> **キャラの絵（立ち絵1枚から作る2Dモデル）が口パクしながら話す版**は、別のリポジトリにあります → [local-2d-character-voice-chat](https://github.com/mosumosu12/local-2d-character-voice-chat)
+
 ### デモ（音声あり・約1分30秒）
 
 https://github.com/mosumosu12/local-voice-character-chat/raw/main/docs/demo.mp4
@@ -85,17 +87,6 @@ CHARACTER=sample python3 server.py 8960 --https --host 0.0.0.0
 
 > ⚠ このサーバーにはパスワード等の認証がありません。**自宅のLANの中だけ**で使い、インターネットに公開しないでください（開けた人が誰でもあなたの Claude と GPU を使えてしまいます）。
 
-## キャラの絵を出して口パクさせる（任意）
-
-立ち絵1枚から、**口パク・まばたき・呼吸・表情の切り替え**をするキャラを作れます（Live2D 不要）。
-`characters/<名前>/avatar/` を置くと、会話画面の上にキャラが出ます。
-
-- 1枚の絵をパーツに分ける（See-through）→ `tools/avatar/build_parts.py`
-- 閉じ目・笑い目・開いた口の差分を描いて載せる（SD WebUI / Forge）→ `tools/avatar/make_expressions.py`
-- 声の大きさで口を動かす（リップシンク）→ `avatar.js`
-
-作り方とコツは **[docs/AVATAR.md](docs/AVATAR.md)** にまとめています。
-
 ## 設定（環境変数）
 
 | 変数 | 既定 | 内容 |
@@ -127,7 +118,6 @@ CHARACTER=sample python3 server.py 8960 --https --host 0.0.0.0
 - [Irodori-TTS](https://huggingface.co/Aratako/Irodori-TTS-v4.1-Small-MF)（MIT＋利用上の注意：本人の同意なく実在人物の声をまねない・誤情報目的のディープフェイクに使わない）
 - [Qwen3-ASR](https://huggingface.co/Qwen/Qwen3-ASR-1.7B)（Apache-2.0）
 - [Jev](https://openrouter.ai/docs/guides/community/jev)（OpenRouter 経由・任意）
-- [See-through](https://github.com/shitagaki-lab/see-through)（Apache-2.0・キャラの絵をパーツに分ける時だけ・任意）
 - Claude（Anthropic）
 
 モデルの重みはこのリポジトリに含まれません。各配布元から取得してください。

@@ -6,7 +6,7 @@
 
 設定は環境変数（README 参照）。キャラは characters/<名前>/character.json。
 """
-import atexit, base64, json, os, re, shutil, subprocess, sys, tempfile, threading, time, urllib.parse, urllib.request, uuid
+import atexit, base64, json, os, re, shutil, subprocess, sys, tempfile, threading, time, urllib.request, uuid
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
@@ -18,7 +18,6 @@ ASR_MODEL = os.environ.get('ASR_MODEL', 'Qwen3-ASR-1.7B')
 TTS_MODEL = os.environ.get('TTS_MODEL', 'Irodori-TTS-v4.1-Small-MF')
 CHAR_DIR = Path(os.environ.get('CHARACTERS_DIR', ROOT / 'characters')) / os.environ.get('CHARACTER', 'sample')
 CHAR = json.loads((CHAR_DIR / 'character.json').read_text())
-AVATAR_DIR = CHAR_DIR / 'avatar'      # tools/avatar/ で作ったキャラの絵（無ければ文字だけの画面）
 LOG = ROOT / 'talk_log.jsonl'
 MAX_BODY = 25 * 1024 * 1024   # 1回に受け取る音声の上限
 MAX_SESSIONS = 8              # 同時に持つ会話の数（超えたら古いものから閉じる）
@@ -208,17 +207,8 @@ class H(BaseHTTPRequestHandler):
         if p in ('/', '/index.html'):
             return self.send(200, (ROOT / 'index.html').read_bytes(), 'text/html; charset=utf-8')
         if p == '/config':
-            cfg = {'name': CHAR['name'], 'theme': CHAR.get('theme', {}), 'avatar': AVATAR_DIR.joinpath('parts.json').exists(),
-                   'smile_words': CHAR.get('smile_words', 'えへへ|やった|わぁ|ふふ|あはは|うれし|楽し|好き')}
-            return self.send(200, json.dumps(cfg, ensure_ascii=False).encode(), 'application/json')
-        if p == '/avatar.js':
-            return self.send(200, (ROOT / 'avatar.js').read_bytes(), 'text/javascript; charset=utf-8')
-        if p.startswith('/avatar/'):      # キャラの絵（characters/<名前>/avatar/ の中だけ）
-            f = (AVATAR_DIR / urllib.parse.unquote(p[len('/avatar/'):])).resolve()
-            if AVATAR_DIR.resolve() in f.parents and f.is_file():
-                ct = 'application/json' if f.suffix == '.json' else 'image/png'
-                return self.send(200, f.read_bytes(), ct)
-            return self.send(404, b'', 'text/plain')
+            return self.send(200, json.dumps({'name': CHAR['name'], 'theme': CHAR.get('theme', {})}, ensure_ascii=False).encode(),
+                             'application/json')
         if p == '/reply':
             jid = self.path.split('id=')[-1]
             for _ in range(2400):     # 最大2分待つ

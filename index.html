@@ -17,44 +17,26 @@ h1{font-size:18px;text-align:center;margin:10px 0 4px}
 #row{display:flex;gap:6px;width:100%}
 #txt{flex:1;font-size:16px;padding:8px;border-radius:8px;border:1px solid #bbb}
 button.s{padding:8px 12px;border-radius:8px;border:0;background:var(--accent);color:#fff}
-#stage{display:none;flex:0 0 46%;min-height:0;justify-content:center;overflow:hidden}
-#stage canvas{height:100%;max-width:100%;object-fit:contain}
-body.has-avatar #log{flex:1}
 </style></head><body>
 <h1 id="title">お話し</h1>
 <div style="text-align:center;font-size:14px"><label><input type="checkbox" id="filler" checked> 先に相槌を返す</label></div>
-<div id="stage"><canvas id="av"></canvas></div>
 <div id="log"></div>
 <div id="bar">
   <button id="talk">押している間<br>話す</button>
   <div id="st">ボタンを押しながら話して、離すと返事が来ます</div>
   <div id="row"><input id="txt" placeholder="文字で話しかける"><button class="s" id="send">送る</button><button class="s" id="reset">最初から</button></div>
 </div>
-<script src="/avatar.js"></script>
 <script>
 let SID; try{ SID=localStorage.getItem('vc_sid'); if(!SID){ SID=Math.random().toString(36).slice(2,12); localStorage.setItem('vc_sid',SID);} }catch(e){ SID=Math.random().toString(36).slice(2,12); }
 const log=document.getElementById('log'), st=document.getElementById('st'), btn=document.getElementById('talk');
 let rec=null, chunks=[], stream=null, busy=false;
 // iPhone等は、タップの直後でないと音を鳴らせない。最初のタップで1つの Audio を使えるようにしておき、以後はそれで鳴らす
 const player=new Audio(); let unlocked=false;
-let ac=null, an=null, buf=null;      // 声の大きさを測って口を動かす（キャラの絵がある時だけ）
-function unlock(){ if(unlocked) return; unlocked=true;
-  { try{ ac=new (window.AudioContext||window.webkitAudioContext)(); const src=ac.createMediaElementSource(player);
-    an=ac.createAnalyser(); an.fftSize=1024; buf=new Float32Array(an.fftSize); src.connect(an); an.connect(ac.destination); }catch(e){} }
-  player.src='data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEAQB8AAIA+AAACABAAZGF0YQAAAAA='; player.play().catch(()=>{}); }
-let av=null, SMILE=null;
-// 口パク：再生中の声の大きさ（RMS）×5 を口の開きにする。30回/秒で十分なめらか
-setInterval(()=>{ if(!av) return; if(!an||player.paused){ av.mouth=0; return; }
-  an.getFloatTimeDomainData(buf); let s=0; for(const v of buf) s+=v*v; av.mouth=Math.min(1,Math.sqrt(s/buf.length)*5); },33);
+function unlock(){ if(unlocked) return; unlocked=true; player.src='data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEAQB8AAIA+AAACABAAZGF0YQAAAAA='; player.play().catch(()=>{}); }
 document.addEventListener('pointerdown',unlock,true);
-function playB64(b64,text){ if(av) av.mood=SMILE&&SMILE.test(text||'')?'smile':'neutral';
-  return new Promise(ok=>{ player.onended=ok; player.onerror=ok; player.src='data:audio/wav;base64,'+b64; player.play().catch(ok); })
-    .then(()=>{ if(av) av.mood='neutral'; }); }
+function playB64(b64){ return new Promise(ok=>{ player.onended=ok; player.onerror=ok; player.src='data:audio/wav;base64,'+b64; player.play().catch(ok); }); }
 fetch('/config').then(r=>r.json()).then(c=>{ document.title=c.name+'とお話し'; document.getElementById('title').textContent=c.name+'とお話し';
-  for(const [k,v] of Object.entries(c.theme||{})) document.documentElement.style.setProperty('--'+k,v);
-  SMILE=new RegExp(c.smile_words||'(?!)');
-  if(c.avatar){ document.getElementById('stage').style.display='flex'; document.body.classList.add('has-avatar');
-    Avatar.load(document.getElementById('av'),'/avatar/').then(a=>{ av=a; }); } });
+  for(const [k,v] of Object.entries(c.theme||{})) document.documentElement.style.setProperty('--'+k,v); });
 function add(cls,text,t){const d=document.createElement('div');d.className=cls;d.textContent=text;log.appendChild(d);
   if(t){const x=document.createElement('div');x.className='t';x.textContent=Object.entries(t).map(([k,v])=>k+' '+v+'秒').join(' / ');log.appendChild(x);}
   log.scrollTop=log.scrollHeight;}
@@ -62,13 +44,13 @@ async function flow(path, body){
   const f=await (await fetch('/'+path+'?sid='+SID+(document.getElementById('filler').checked?'':'&filler=0'),{method:'POST',body})).json();
   if(f.error){ st.textContent='エラー: '+f.error; return; }
   add('me',f.heard||'（聞き取れなかった）'); let fp=null;
-  if(f.filler){ add('co',f.filler,{'相槌まで':f.sec['相槌まで']}); fp=playB64(f.filler_audio,f.filler); }
+  if(f.filler){ add('co',f.filler,{'相槌まで':f.sec['相槌まで']}); fp=playB64(f.filler_audio); }
   st.textContent='返事を作っています…';
   const rr=await (await fetch('/reply?id='+f.job)).json();
   if(fp) await fp;
   if(rr.error){ st.textContent='エラー: '+rr.error; return; }
   add('co',rr.reply,rr.sec); st.textContent='話し終わってから返事の声まで '+rr.sec['本返事まで']+'秒';
-  await playB64(rr.audio,rr.reply); }
+  await playB64(rr.audio); }
 async function start(e){ e.preventDefault(); if(busy) return;
   try{ stream=stream||await navigator.mediaDevices.getUserMedia({audio:true}); }catch(err){ st.textContent='マイクが使えません（'+err.name+'）。下の文字入力で試せます'; return; }
   chunks=[]; rec=new MediaRecorder(stream); rec.ondataavailable=ev=>chunks.push(ev.data); rec.start(); btn.classList.add('rec'); st.textContent='聞いています…'; }
