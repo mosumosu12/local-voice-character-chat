@@ -1,0 +1,6 @@
+talk_log.jsonl
+__pycache__/
+*.pem
+characters/*/fillers/
+characters/*/*_ref.wav
+.env
