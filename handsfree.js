@@ -26,8 +26,8 @@ const HandsFree = {
     const START = Math.ceil(0.12 / frameSec);       // 0.12 秒続いたら話し始め
     const END = Math.ceil(silenceSec / frameSec);   // これだけ黙ったら話し終わり
     const MIN = Math.ceil(0.35 / frameSec);         // 0.35 秒より短い音（咳・物音）は送らない
-    const MAX = Math.ceil(15 / frameSec);           // 15 秒で区切る
-    let floor = 0.01, pre = [], rec = null, loud = 0, quiet = 0, busyUntil = 0, sending = false;
+    const MAX = Math.ceil(12 / frameSec);           // 12 秒で区切る
+    let floor = 0.01, peak = 0, pre = [], rec = null, loud = 0, quiet = 0, busyUntil = 0, sending = false;
     proc.port.onmessage = (ev) => {
       const x = ev.data; let s = 0;
       for (let i = 0; i < x.length; i++) s += x[i] * x[i];
@@ -42,11 +42,14 @@ const HandsFree = {
       if (!rec) {
         pre.push(buf); if (pre.length > PRE) pre.shift();
         loud = rms > on ? loud + 1 : 0;
-        if (loud >= START) { rec = pre.slice(); pre = []; quiet = 0; }
+        if (loud >= START) { rec = pre.slice(); pre = []; quiet = 0; peak = rms; }
         onLevel(rms, rec ? 'rec' : 'listen'); return;
       }
       rec.push(buf);
-      quiet = rms < off ? quiet + 1 : 0;
+      // 話し終わりは「周りの音の2倍」だけでなく「今の話し声の山の1/4」より小さくなったら、で判定する
+      // （周りがうるさいと周りの音の2倍を下回らず、いつまでも話し終わらない＝返事が遅く感じる）
+      peak = Math.max(peak * 0.995, rms);
+      quiet = rms < Math.max(off, peak * 0.25) ? quiet + 1 : 0;
       onLevel(rms, 'rec');
       if (quiet >= END || rec.length >= MAX) {
         const frames = rec, voiced = frames.length - quiet - PRE; rec = null; quiet = loud = 0;
