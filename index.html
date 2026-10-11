@@ -13,19 +13,23 @@ h1{font-size:18px;text-align:center;margin:10px 0 4px}
 #bar{padding:12px;display:flex;flex-direction:column;gap:8px;align-items:center}
 #talk{width:180px;height:180px;border-radius:50%;border:0;font-size:20px;font-weight:bold;color:#fff;background:var(--accent);touch-action:none;user-select:none;-webkit-user-select:none}
 #talk.rec{filter:brightness(.8);transform:scale(.96)}
+#talk.hf{background:#fff;color:var(--accent);border:4px solid var(--accent);box-shadow:0 0 0 calc(var(--lv,0)*30px) color-mix(in srgb,var(--accent) 25%,transparent)}
+#talk.hf.rec{background:var(--accent);color:#fff}
+
 #st{font-size:14px;min-height:20px}
 #row{display:flex;gap:6px;width:100%}
 #txt{flex:1;font-size:16px;padding:8px;border-radius:8px;border:1px solid #bbb}
 button.s{padding:8px 12px;border-radius:8px;border:0;background:var(--accent);color:#fff}
 </style></head><body>
 <h1 id="title">お話し</h1>
-<div style="text-align:center;font-size:14px"><label><input type="checkbox" id="filler" checked> 先に相槌を返す</label></div>
+<div style="text-align:center;font-size:14px"><label><input type="checkbox" id="filler" checked> 先に相槌を返す</label>　<label><input type="checkbox" id="hf"> ハンズフリー（押さずに話しかける）</label></div>
 <div id="log"></div>
 <div id="bar">
   <button id="talk">押している間<br>話す</button>
   <div id="st">ボタンを押しながら話して、離すと返事が来ます</div>
   <div id="row"><input id="txt" placeholder="文字で話しかける"><button class="s" id="send">送る</button><button class="s" id="reset">最初から</button></div>
 </div>
+<script src="/handsfree.js"></script>
 <script>
 let SID; try{ SID=localStorage.getItem('vc_sid'); if(!SID){ SID=Math.random().toString(36).slice(2,12); localStorage.setItem('vc_sid',SID);} }catch(e){ SID=Math.random().toString(36).slice(2,12); }
 const log=document.getElementById('log'), st=document.getElementById('st'), btn=document.getElementById('talk');
@@ -51,12 +55,25 @@ async function flow(path, body){
   if(rr.error){ st.textContent='エラー: '+rr.error; return; }
   add('co',rr.reply,rr.sec); st.textContent='話し終わってから返事の声まで '+rr.sec['本返事まで']+'秒';
   await playB64(rr.audio); }
-async function start(e){ e.preventDefault(); if(busy) return;
+async function start(e){ e.preventDefault(); if(busy||hf) return;
   try{ stream=stream||await navigator.mediaDevices.getUserMedia({audio:true}); }catch(err){ st.textContent='マイクが使えません（'+err.name+'）。下の文字入力で試せます'; return; }
   chunks=[]; rec=new MediaRecorder(stream); rec.ondataavailable=ev=>chunks.push(ev.data); rec.start(); btn.classList.add('rec'); st.textContent='聞いています…'; }
 async function stop(e){ e.preventDefault(); if(!rec||rec.state!=='recording') return; btn.classList.remove('rec');
   rec.onstop=async()=>{ busy=true; st.textContent='考え中…'; await flow('talk',new Blob(chunks,{type:rec.mimeType})); busy=false; }; rec.stop(); }
 btn.addEventListener('pointerdown',start); btn.addEventListener('pointerup',stop); btn.addEventListener('pointerleave',stop); btn.addEventListener('pointercancel',stop);
+// ハンズフリー：チェックを入れると、ボタンを押さずに話しかけるだけで送る（handsfree.js）
+let hf=null; const hfBox=document.getElementById('hf');
+const TALK_LABEL=btn.innerHTML, TALK_HELP=st.textContent;
+hfBox.onchange=async()=>{
+  if(hfBox.checked){
+    try{ hf=await HandsFree.start({ isBusy:()=>busy||!player.paused,
+      onSpeech:async(wav)=>{ busy=true; st.textContent='考え中…'; try{ await flow('talk',wav); }finally{ busy=false; } },
+      onLevel:(v,s)=>{ btn.style.setProperty('--lv',Math.min(1,v*8)); btn.classList.toggle('rec',s==='rec');
+        if(!busy) st.textContent = s==='rec' ? '聞いています…' : s==='wait' ? '' : '話しかけてね（ハンズフリー）'; } });
+    }catch(err){ hfBox.checked=false; st.textContent='マイクが使えません（'+err.name+'）'; return; }
+    btn.classList.add('hf'); btn.innerHTML='ハンズフリー<br>話しかけてね'; st.textContent='話しかけてね（ハンズフリー）';
+  }else{ hf&&hf.stop(); hf=null; btn.classList.remove('hf','rec'); btn.innerHTML=TALK_LABEL; st.textContent=TALK_HELP; }
+};
 document.getElementById('send').onclick=async()=>{ const t=document.getElementById('txt').value.trim(); if(!t||busy) return; busy=true; st.textContent='考え中…';
   document.getElementById('txt').value=''; await flow('text',JSON.stringify({text:t})); busy=false; };
 document.getElementById('reset').onclick=async()=>{ await fetch('/reset?sid='+SID); log.innerHTML=''; st.textContent='最初からにしました'; };

@@ -206,6 +206,8 @@ class H(BaseHTTPRequestHandler):
         p = self.path.split('?')[0]
         if p in ('/', '/index.html'):
             return self.send(200, (ROOT / 'index.html').read_bytes(), 'text/html; charset=utf-8')
+        if p == '/handsfree.js':
+            return self.send(200, (ROOT / 'handsfree.js').read_bytes(), 'text/javascript; charset=utf-8')
         if p == '/config':
             return self.send(200, json.dumps({'name': CHAR['name'], 'theme': CHAR.get('theme', {})}, ensure_ascii=False).encode(),
                              'application/json')
